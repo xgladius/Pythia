@@ -8,18 +8,25 @@ use onnxruntime::tensor::OrtOwnedTensor;
 
 pub fn predict(
     session: &mut Session<'_>,
-    word_index: HashMap<String, f32>,
+    word_index: &HashMap<String, f32>,
     input: String,
     threshold: f32,
 ) -> bool {
-    let mut tokenized_input: Vec<f32> = tokenize_input(&word_index, &input);
+    let mut tokenized_input: Vec<f32> = tokenize_input(word_index, &input);
 
     let input_shape = &session.inputs[0].dimensions;
-    if let Some(expected_length) = input_shape.get(1).and_then(|dim| dim.to_owned()) {
-        if tokenized_input.len() < expected_length as usize {
-            tokenized_input.resize(expected_length as usize, 0.0);
-        } else if tokenized_input.len() > expected_length as usize {
-            tokenized_input.truncate(expected_length as usize);
+    if let Some(expected_length) = input_shape.get(1).copied() {
+        match tokenized_input
+            .len()
+            .cmp(&(expected_length.unwrap() as usize))
+        {
+            std::cmp::Ordering::Less => {
+                tokenized_input.resize(expected_length.unwrap() as usize, 0.0);
+            }
+            std::cmp::Ordering::Greater => {
+                tokenized_input.truncate(expected_length.unwrap() as usize);
+            }
+            _ => {}
         }
     }
 
@@ -31,8 +38,8 @@ pub fn predict(
     start_output.index_axis(ndarray::Axis(0), 0)[0] > threshold
 }
 
-pub fn get_word_index() -> anyhow::Result<HashMap<String, f32>> {
-    let mut tokenizer_file = File::open("models/tokenizer.json")?;
+pub fn get_word_index(path: &str) -> anyhow::Result<HashMap<String, f32>> {
+    let mut tokenizer_file = File::open(path)?;
     let mut tokenizer_json = String::new();
     tokenizer_file.read_to_string(&mut tokenizer_json)?;
 
@@ -47,9 +54,8 @@ pub fn tokenize_input(tokenizer: &HashMap<String, f32>, input: &str) -> Vec<f32>
     let mut tokens = Vec::new();
     for word in words {
         if let Some(token) = tokenizer.get(word) {
-            tokens.push(token.clone());
+            tokens.push(*token);
         } else {
-            println!("fail {}", word);
             tokens.push(0.0);
         }
     }

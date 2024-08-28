@@ -6,6 +6,9 @@ import tensorflow as tf
 from tensorflow.keras import layers, models, preprocessing
 from sklearn.metrics import accuracy_score
 import tf2onnx
+import matplotlib.pyplot as plt
+import seaborn as sns
+import pandas as pd
 
 # Directory containing JSON files
 directory = 'samples'
@@ -86,8 +89,8 @@ model_start = create_rnn_model(X_train_start.shape, vocab_size)
 model_end = create_rnn_model(X_train_end.shape, vocab_size)
 
 # Step 6: Train the models
-model_start.fit(X_train_start, y_train_start, epochs=10, batch_size=32, validation_split=0.1)
-model_end.fit(X_train_end, y_train_end, epochs=10, batch_size=32, validation_split=0.1)
+history_start = model_start.fit(X_train_start, y_train_start, epochs=10, batch_size=32, validation_split=0.1)
+history_end = model_end.fit(X_train_end, y_train_end, epochs=10, batch_size=32, validation_split=0.1)
 
 # Step 7: Evaluate the models
 loss_start, accuracy_start = model_start.evaluate(X_test_start, y_test_start)
@@ -106,3 +109,27 @@ tokenizer_json = tokenizer.to_json()
 with open('models/tokenizer.json', 'w') as f:
     f.write(tokenizer_json)
 print("Tokenizer saved to 'tokenizer.json'")
+
+def plot_training_curves(history, filename):
+    plt.figure(figsize=(12, 6))
+    plt.subplot(1, 2, 1)
+    plt.plot(history.history['accuracy'], label='Train Accuracy')
+    plt.plot(history.history['val_accuracy'], label='Validation Accuracy')
+    plt.xlabel('Epochs')
+    plt.ylabel('Accuracy')
+    plt.legend()
+    plt.title('Accuracy Over Epochs')
+    
+    plt.subplot(1, 2, 2)
+    plt.plot(history.history['loss'], label='Train Loss')
+    plt.plot(history.history['val_loss'], label='Validation Loss')
+    plt.xlabel('Epochs')
+    plt.ylabel('Loss')
+    plt.legend()
+    plt.title('Loss Over Epochs')
+    
+    plt.savefig(filename)
+    plt.close()
+
+plot_training_curves(history_start, 'graphs/training_curves_start.png')
+plot_training_curves(history_end, 'graphs/training_curves_end.png')
