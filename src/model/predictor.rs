@@ -1,10 +1,7 @@
 use std::collections::HashMap;
 
 use iced_x86::{Formatter, Instruction, IntelFormatter};
-use onnxruntime::{
-    environment::Environment,
-    session::{self, Session},
-};
+use onnxruntime::{environment::Environment, session::Session};
 
 use crate::disasm::MyFormatterOutput;
 
@@ -74,6 +71,6 @@ impl<'a> Predictor<'a> {
             tokenized_input.push(' ');
         }
 
-        predict(session, &word_index, tokenized_input, 0.99)
+        predict(session, word_index, tokenized_input, 0.999)
     }
 }

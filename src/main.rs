@@ -1,9 +1,9 @@
-use disasm::decode;
+use disasm::collect_functions;
 use loader::get_elf_code_section_offset;
-use model::get_word_index;
+
 use model::predictor::Predictor;
 use onnxruntime::environment::Environment;
-use onnxruntime::GraphOptimizationLevel;
+
 use std::fs::File;
 use std::io::{Read, Seek};
 use std::path::Path;
@@ -44,7 +44,8 @@ fn main() -> anyhow::Result<()> {
         "models/tokenizer.json".into(),
     )?;
 
-    decode(&mut predictor, &code, offset)?;
+    let functions = collect_functions(&mut predictor, &code, offset)?;
+    println!("collected {} functions", functions.len());
 
     Ok(())
 }

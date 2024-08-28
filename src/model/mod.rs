@@ -10,7 +10,7 @@ use onnxruntime::session::Session;
 use onnxruntime::tensor::OrtOwnedTensor;
 use onnxruntime::GraphOptimizationLevel;
 
-pub fn load_session<'a>(environment: &'a Environment, path: String) -> anyhow::Result<Session<'a>> {
+pub fn load_session(environment: &Environment, path: String) -> anyhow::Result<Session<'_>> {
     let session = environment
         .new_session_builder()?
         .with_optimization_level(GraphOptimizationLevel::Basic)?

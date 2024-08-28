@@ -1,9 +1,6 @@
-use std::collections::HashMap;
-
 use iced_x86::{Decoder, DecoderOptions, Formatter, FormatterOutput, IntelFormatter, Mnemonic};
-use onnxruntime::session::Session;
 
-use crate::model::predictor::{self, Predictor};
+use crate::model::predictor::Predictor;
 
 pub struct MyFormatterOutput<'a> {
     buffer: &'a mut String,
@@ -21,17 +18,22 @@ impl<'a> FormatterOutput for MyFormatterOutput<'a> {
     }
 }
 
-struct Function {
+pub struct Function {
     start: u64,
+    end: u64,
 }
 
 impl Function {
     pub fn new() -> Function {
-        Function { start: 0 }
+        Function { start: 0, end: 0 }
     }
 }
 
-pub fn decode(predictor: &mut Predictor, code: &[u8], ip: u64) -> anyhow::Result<()> {
+pub fn collect_functions(
+    predictor: &mut Predictor,
+    code: &[u8],
+    ip: u64,
+) -> anyhow::Result<Vec<Function>> {
     let mut decoder = Decoder::new(64, code, DecoderOptions::NONE);
     decoder.set_ip(ip);
 
@@ -39,11 +41,14 @@ pub fn decode(predictor: &mut Predictor, code: &[u8], ip: u64) -> anyhow::Result
     let mut instructions = Vec::new();
     let mut current_function = Function::new();
 
+    let mut functions = vec![];
+
     while decoder.can_decode() {
         let instruction = decoder.decode();
         instructions.push(instruction);
     }
 
+    // Collect initial list of functions via RNN inference
     let mut i = 0;
     while i < instructions.len() {
         if instructions[i].mnemonic() == Mnemonic::Nop {
@@ -62,7 +67,7 @@ pub fn decode(predictor: &mut Predictor, code: &[u8], ip: u64) -> anyhow::Result
         if is_start {
             current_function.start = cur_candidates[0].ip();
             println!(
-                "found function start ({:.2} confidence) at {:X} for {}",
+                "found function start ({:.5} confidence) at {:X} for {}",
                 start_accuracy,
                 cur_candidates[0].ip(),
                 cur_candidates
@@ -75,11 +80,29 @@ pub fn decode(predictor: &mut Predictor, code: &[u8], ip: u64) -> anyhow::Result
                     .collect::<Vec<String>>()
                     .join(" ")
             );
+            functions.push(current_function);
+            current_function = Function::new();
             i += cur_candidates.len() + 1;
         } else {
             i += 1;
         }
     }
 
-    Ok(())
+    // Go over instructions again to collect calls to functions, insert if not already present
+    // Naively assumes that the call is to the start of a functions prologue, which is not necessarily true
+    let mut i = 0;
+    while i < instructions.len() {
+        if instructions[i].mnemonic() == Mnemonic::Call && instructions[i].is_call_near() {
+            let target_address = instructions[i].near_branch_target();
+            if !functions.iter().any(|f| f.start == target_address) {
+                functions.push(Function {
+                    start: target_address,
+                    end: 0,
+                });
+            }
+        }
+        i += 1;
+    }
+
+    Ok(functions)
 }
