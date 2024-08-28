@@ -18,6 +18,7 @@ impl<'a> FormatterOutput for MyFormatterOutput<'a> {
     }
 }
 
+#[derive(Debug)]
 pub struct Function {
     start: u64,
     end: u64,
@@ -62,24 +63,10 @@ pub fn collect_functions(
 
         let cur_candidates = &instructions[i..i + 4];
         let (is_start, start_accuracy) =
-            predictor.is_function_start(cur_candidates, &mut formatter);
+            predictor.is_function_start(cur_candidates, &mut formatter, 0.999); // Super confident in the start model
 
         if is_start {
             current_function.start = cur_candidates[0].ip();
-            println!(
-                "found function start ({:.5} confidence) at {:X} for {}",
-                start_accuracy,
-                cur_candidates[0].ip(),
-                cur_candidates
-                    .iter()
-                    .map(|instr| {
-                        let mut output = String::new();
-                        formatter.format(instr, &mut MyFormatterOutput::new(&mut output));
-                        output
-                    })
-                    .collect::<Vec<String>>()
-                    .join(" ")
-            );
             functions.push(current_function);
             current_function = Function::new();
             i += cur_candidates.len() + 1;
@@ -102,6 +89,31 @@ pub fn collect_functions(
             }
         }
         i += 1;
+    }
+
+    // Make two assumptions,
+    // 1. That we have found all function prologues
+    // 2. That functions are contiguous in memory
+    // This allows us to walk backwards in our function vec to find the end of a function
+    // functions[i].end = functions[i+1].start - sizeof(last valid instruction found before functions[i+1].start) && predicted_end == true
+    for i in 0..functions.len() - 1 {
+        let next_function_start = functions[i + 1].start;
+
+        let mut function_end = 0;
+        for j in (0..instructions.len()).rev() {
+            let instruction = instructions[j];
+            if instruction.ip() < next_function_start && instructions[i].mnemonic() != Mnemonic::Nop
+            {
+                let (is_end, confidence) =
+                    predictor.is_function_end(&instructions[j..j + 4], &mut formatter, 0.98); // Not as confident in the end model
+                if is_end {
+                    function_end = instruction.ip();
+                    break;
+                }
+            }
+        }
+
+        functions[i].end = function_end;
     }
 
     Ok(functions)

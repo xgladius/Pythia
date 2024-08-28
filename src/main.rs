@@ -45,6 +45,7 @@ fn main() -> anyhow::Result<()> {
     )?;
 
     let functions = collect_functions(&mut predictor, &code, offset)?;
+    println!("{:X?}", functions);
     println!("collected {} functions", functions.len());
 
     Ok(())

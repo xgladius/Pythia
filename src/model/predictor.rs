@@ -35,12 +35,14 @@ impl<'a> Predictor<'a> {
         &mut self,
         instructions: &[Instruction],
         formatter: &mut IntelFormatter,
+        confidence: f32,
     ) -> (bool, f32) {
         Self::do_prediction(
             &mut self.prologue_session,
             &self.word_index,
             instructions,
             formatter,
+            confidence,
         )
     }
 
@@ -48,12 +50,14 @@ impl<'a> Predictor<'a> {
         &mut self,
         instructions: &[Instruction],
         formatter: &mut IntelFormatter,
+        confidence: f32,
     ) -> (bool, f32) {
         Self::do_prediction(
             &mut self.epilogue_session,
             &self.word_index,
             instructions,
             formatter,
+            confidence,
         )
     }
 
@@ -62,6 +66,7 @@ impl<'a> Predictor<'a> {
         word_index: &HashMap<String, f32>,
         instructions: &[Instruction],
         formatter: &mut IntelFormatter,
+        confidence: f32,
     ) -> (bool, f32) {
         let mut tokenized_input = String::new();
         for instr in instructions.iter() {
@@ -71,6 +76,6 @@ impl<'a> Predictor<'a> {
             tokenized_input.push(' ');
         }
 
-        predict(session, word_index, tokenized_input, 0.999)
+        predict(session, word_index, tokenized_input, confidence)
     }
 }
