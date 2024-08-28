@@ -1,5 +1,5 @@
 # Pythia
-An RNN model aimed at detecting [prologues](https://en.wikipedia.org/wiki/Function_prologue_and_epilogue) and [epilogues](https://en.wikipedia.org/wiki/Function_prologue_and_epilogue) in compiled ELF binaries.
+An RNN model aimed at detecting [prologues and epilogues](https://en.wikipedia.org/wiki/Function_prologue_and_epilogue) in compiled x86_64 ELF binaries.
 
 Mnemonics and instruction registers are extracted from prologues and epilogues from executables using IDA (or similar), which is then used to train the model. Some information from the instructions are purposefully ommited during extraction as to not pollute the training set.
 
@@ -46,7 +46,9 @@ This project was completed in a weekend, it was my first time doing any sort of 
 2. In the future I would certainly feel more comfortable choosing the architecture of the model. I had a few iterations of this project, first Logistic Regression on raw bytes of the prologues and epilogues, then an RNN on just the mnemonics of the prologues and epilogues, then a transformer on the current training data, then finally an RNN on the current training data. It took a lot of experimentation to get the best architecture for this project, and knowing what I know now, I feel like an RNN is the obvious choice, as the sequence data is small and the model is relatively simple.
 
 ## Training Results
+Prologues:
 ![Training Curves Prologue](graphs/training_curves_start.png)
+Epilogues:
 ![Training Curves Epilogue](graphs/training_curves_end.png)
 
 ## Performance Results

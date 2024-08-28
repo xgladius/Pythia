@@ -1,41 +1,22 @@
+pub mod predictor;
+
 use std::collections::HashMap;
 use std::fs::File;
 use std::io::Read;
 
+use onnxruntime::environment::Environment;
 use onnxruntime::ndarray::{self, Array};
 use onnxruntime::session::Session;
 use onnxruntime::tensor::OrtOwnedTensor;
+use onnxruntime::GraphOptimizationLevel;
 
-pub fn predict(
-    session: &mut Session<'_>,
-    word_index: &HashMap<String, f32>,
-    input: String,
-    threshold: f32,
-) -> bool {
-    let mut tokenized_input: Vec<f32> = tokenize_input(word_index, &input);
-
-    let input_shape = &session.inputs[0].dimensions;
-    if let Some(expected_length) = input_shape.get(1).copied() {
-        match tokenized_input
-            .len()
-            .cmp(&(expected_length.unwrap() as usize))
-        {
-            std::cmp::Ordering::Less => {
-                tokenized_input.resize(expected_length.unwrap() as usize, 0.0);
-            }
-            std::cmp::Ordering::Greater => {
-                tokenized_input.truncate(expected_length.unwrap() as usize);
-            }
-            _ => {}
-        }
-    }
-
-    let input_array = Array::from_shape_vec((1, tokenized_input.len()), tokenized_input).unwrap();
-
-    let start_output_vec = session.run(vec![input_array.clone()]).unwrap();
-    let start_output: &OrtOwnedTensor<f32, _> = &start_output_vec[0];
-
-    start_output.index_axis(ndarray::Axis(0), 0)[0] > threshold
+pub fn load_session<'a>(environment: &'a Environment, path: String) -> anyhow::Result<Session<'a>> {
+    let session = environment
+        .new_session_builder()?
+        .with_optimization_level(GraphOptimizationLevel::Basic)?
+        .with_number_threads(1)?
+        .with_model_from_file(path)?;
+    Ok(session)
 }
 
 pub fn get_word_index(path: &str) -> anyhow::Result<HashMap<String, f32>> {
@@ -61,4 +42,37 @@ pub fn tokenize_input(tokenizer: &HashMap<String, f32>, input: &str) -> Vec<f32>
     }
 
     tokens
+}
+
+pub fn predict(
+    session: &mut Session<'_>,
+    word_index: &HashMap<String, f32>,
+    input: String,
+    threshold: f32,
+) -> (bool, f32) {
+    let mut tokenized_input: Vec<f32> = tokenize_input(word_index, &input);
+
+    let input_shape = &session.inputs[0].dimensions;
+    if let Some(expected_length) = input_shape.get(1).copied() {
+        match tokenized_input
+            .len()
+            .cmp(&(expected_length.unwrap() as usize))
+        {
+            std::cmp::Ordering::Less => {
+                tokenized_input.resize(expected_length.unwrap() as usize, 0.0);
+            }
+            std::cmp::Ordering::Greater => {
+                tokenized_input.truncate(expected_length.unwrap() as usize);
+            }
+            _ => {}
+        }
+    }
+
+    let input_array = Array::from_shape_vec((1, tokenized_input.len()), tokenized_input).unwrap();
+
+    let start_output_vec = session.run(vec![input_array.clone()]).unwrap();
+    let start_output: &OrtOwnedTensor<f32, _> = &start_output_vec[0];
+    let confidence = start_output.index_axis(ndarray::Axis(0), 0)[0];
+
+    (confidence > threshold, confidence)
 }

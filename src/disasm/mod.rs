@@ -1,18 +1,16 @@
 use std::collections::HashMap;
 
-use iced_x86::{
-    Decoder, DecoderOptions, Formatter, FormatterOutput, Instruction, IntelFormatter, Mnemonic,
-};
+use iced_x86::{Decoder, DecoderOptions, Formatter, FormatterOutput, IntelFormatter, Mnemonic};
 use onnxruntime::session::Session;
 
-use crate::model::predict;
+use crate::model::predictor::{self, Predictor};
 
-struct MyFormatterOutput<'a> {
+pub struct MyFormatterOutput<'a> {
     buffer: &'a mut String,
 }
 
 impl<'a> MyFormatterOutput<'a> {
-    fn new(buffer: &'a mut String) -> Self {
+    pub fn new(buffer: &'a mut String) -> Self {
         Self { buffer }
     }
 }
@@ -33,14 +31,10 @@ impl Function {
     }
 }
 
-pub fn decode(
-    session: &mut Session<'_>,
-    word_index: &HashMap<String, f32>,
-    code: &[u8],
-    ip: u64,
-) -> anyhow::Result<()> {
+pub fn decode(predictor: &mut Predictor, code: &[u8], ip: u64) -> anyhow::Result<()> {
     let mut decoder = Decoder::new(64, code, DecoderOptions::NONE);
     decoder.set_ip(ip);
+
     let mut formatter = IntelFormatter::new();
     let mut instructions = Vec::new();
     let mut current_function = Function::new();
@@ -63,7 +57,7 @@ pub fn decode(
 
         let cur_candidates = &instructions[i..i + 4];
         let (is_start, start_accuracy) =
-            is_function_start(session, word_index, cur_candidates, &mut formatter);
+            predictor.is_function_start(cur_candidates, &mut formatter);
 
         if is_start {
             current_function.start = cur_candidates[0].ip();
@@ -88,24 +82,4 @@ pub fn decode(
     }
 
     Ok(())
-}
-
-fn is_function_start(
-    session: &mut Session<'_>,
-    word_index: &HashMap<String, f32>,
-    instructions: &[Instruction],
-    formatter: &mut IntelFormatter,
-) -> (bool, f64) {
-    let mut example_input = String::new();
-    for instr in instructions.iter() {
-        let mut output = String::new();
-        formatter.format(instr, &mut MyFormatterOutput::new(&mut output));
-        example_input.push_str(&output);
-        example_input.push(' '); // Separate instructions with a space
-    }
-
-    let start_prediction = predict(session, word_index, example_input, 0.99);
-
-    // Return whether it's a start and a confidence level (for example purposes, 0.99 is used)
-    (start_prediction, 0.99)
 }
